@@ -2,67 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Tree Bid Calculator</title>
 
 <style>
-* { box-sizing: border-box; }
-
-body {
-  font-family: Arial, sans-serif;
-  margin: 0;
-  padding: 12px;
-  background: #f3f3f3;
-  color: #222;
-}
-
-.card {
-  background: #fff;
-  padding: 14px;
-  margin-bottom: 12px;
-  border-radius: 12px;
-}
-
-label {
-  display: block;
-  font-weight: bold;
-  margin-top: 10px;
-}
-
-input, select {
-  width: 100%;
-  padding: 10px;
-  margin-top: 5px;
-  border-radius: 8px;
-}
-
-button {
-  width: 100%;
-  padding: 12px;
-  margin-top: 8px;
-  border-radius: 10px;
-  background: #222;
-  color: white;
-  border: none;
-}
-
-.total-box {
-  background: #222;
-  color: white;
-  padding: 16px;
-  border-radius: 12px;
-  text-align: center;
-  font-size: 26px;
-  font-weight: bold;
-  margin-bottom: 15px;
-}
-
+body { font-family: Arial; padding:12px; background:#f3f3f3; }
+.card { background:#fff; padding:14px; margin-bottom:12px; border-radius:12px; }
+label { display:block; margin-top:10px; font-weight:bold; }
+input,select { width:100%; padding:10px; margin-top:5px; border-radius:8px; }
+button { width:100%; padding:12px; margin-top:10px; border:none; border-radius:10px; background:#222; color:white; }
+.total-box { background:#222; color:#fff; padding:16px; border-radius:12px; text-align:center; font-size:26px; margin-bottom:15px; }
+.checkbox-row { display:flex; align-items:center; gap:10px; margin-top:8px; }
 #definitionsPage { display:none; }
 #printArea { display:none; }
-
 @media print {
-  body > *:not(#printArea) { display:none !important; }
-  #printArea { display:block !important; }
+ body > *:not(#printArea){ display:none !important; }
+ #printArea{ display:block !important; }
 }
 </style>
 </head>
@@ -73,10 +28,14 @@ button {
 
 <h2>Tree Bid Calculator</h2>
 
+<!-- JOB INFO -->
 <div class="card">
 <h3>Job Info</h3>
-<input id="customerName" placeholder="Customer Name">
-<input id="jobAddress" placeholder="Job Address">
+<label>Customer Name</label>
+<input id="customerName">
+<label>Job Address</label>
+<input id="jobAddress">
+<label>Date</label>
 <input id="jobDate" type="date">
 </div>
 
@@ -87,16 +46,28 @@ button {
 <button onclick="addTree()">+ Add Tree</button>
 <button onclick="showDefinitions()">View Definitions</button>
 
+<!-- ADD ONS -->
 <div class="card">
-<h3>Excavator</h3>
-<label><input type="checkbox" id="excavatorCheck" onchange="calculate()"> Use Excavator</label>
-<input type="number" id="excavator" value="500" oninput="calculate()">
+<h3>Add-Ons</h3>
+
+<div class="checkbox-row">
+<input type="checkbox" id="excavatorCheck" onchange="calculate()">
+<span>Excavator</span>
+</div>
+<input id="excavator" type="number" value="500" oninput="calculate()">
+
+<div class="checkbox-row">
+<input type="checkbox" id="climber" onchange="calculate()">
+<span>Two Climbers +600</span>
+</div>
+
 </div>
 
 <button onclick="printEstimate()">Print Estimate</button>
 
 </div>
 
+<!-- DEFINITIONS PAGE -->
 <div id="definitionsPage">
 <h2>Definitions</h2>
 <button onclick="showCalculator()">← Back</button>
@@ -117,29 +88,93 @@ button {
 <div id="printArea"></div>
 
 <script>
+
 let trees=[];
 
+const sizes={
+500:"Small",
+1050:"Medium",
+1750:"Large",
+2050:"XL"
+};
+
+const canopy={1:"Light",1.1:"Medium",1.2:"Large",1.35:"XL"};
+
+const diff=[
+{key:"normal",label:"Normal Rigging",val:.12},
+{key:"tech",label:"Technical Rigging",val:.25},
+{key:"struct",label:"Near Structure",val:.10},
+{key:"high",label:"High Risk Structure",val:.25},
+{key:"dead",label:"Dead",val:.12},
+{key:"drop",label:"Poor Drop",val:.12},
+{key:"access",label:"Access",val:.08},
+{key:"slope",label:"Slope",val:.08},
+{key:"cleanup",label:"Cleanup",val:.10},
+{key:"logs",label:"XL Logs",val:.10}
+];
+
 function addTree(){
-trees.push({base:2050,can:1.35});
+trees.push({size:2050,can:1,d:[]});
 render();
 }
 
 function render(){
 let html="";
 trees.forEach((t,i)=>{
-html+=`<div class="card">Tree ${i+1} Total: $${calc(t)}</div>`;
+let total=calcTree(t);
+html+=`
+<div class="card">
+<h3>Tree ${i+1} - $${total}</h3>
+
+<select onchange="update(${i},'size',this.value)">
+${Object.keys(sizes).map(v=>`<option value="${v}" ${t.size==v?"selected":""}>${sizes[v]}</option>`).join("")}
+</select>
+
+<select onchange="update(${i},'can',this.value)">
+${Object.keys(canopy).map(v=>`<option value="${v}" ${t.can==v?"selected":""}>${canopy[v]}</option>`).join("")}
+</select>
+
+${diff.map(d=>`
+<label class="checkbox-row">
+<input type="checkbox" ${t.d.includes(d.key)?"checked":""}
+onchange="toggle(${i},'${d.key}',this.checked)">
+${d.label}
+</label>`).join("")}
+
+</div>`;
 });
 treesDiv.innerHTML=html;
 calculate();
 }
 
-function calc(t){
-return Math.round(t.base*t.can);
+function update(i,k,v){
+trees[i][k]=Number(v);
+render();
+}
+
+function toggle(i,k,c){
+if(c){
+if(k==="normal") trees[i].d=trees[i].d.filter(x=>x!=="tech");
+if(k==="tech") trees[i].d=trees[i].d.filter(x=>x!=="normal");
+if(k==="struct") trees[i].d=trees[i].d.filter(x=>x!=="high");
+if(k==="high") trees[i].d=trees[i].d.filter(x=>x!=="struct");
+trees[i].d.push(k);
+}else{
+trees[i].d=trees[i].d.filter(x=>x!==k);
+}
+render();
+}
+
+function calcTree(t){
+let base=t.size*t.can;
+let pct=t.d.reduce((a,k)=>a+diff.find(d=>d.key===k).val,0);
+return Math.round(base*(1+pct));
 }
 
 function calculate(){
-let total=trees.reduce((s,t)=>s+calc(t),0);
+let total=trees.reduce((s,t)=>s+calcTree(t),0);
 if(excavatorCheck.checked) total+=+excavator.value;
+if(climber.checked) total+=600;
 finalTotal.innerHTML="$"+Math.round(total);
 return total;
 }
@@ -175,6 +210,7 @@ window.print();
 }
 
 addTree();
+
 </script>
 
 </body>
