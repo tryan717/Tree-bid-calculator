@@ -84,6 +84,11 @@ button {
 
 .remove-btn { background: #8b1e1e; }
 
+.print-btn {
+  background: #14532d;
+  margin-bottom: 20px;
+}
+
 .total-box {
   background: #222;
   color: white;
@@ -206,6 +211,8 @@ button {
   </select>
 </div>
 
+<button type="button" class="print-btn" onclick="printEstimate()">Print Estimate</button>
+
 <script>
 let trees = [];
 let activeTree = 0;
@@ -228,6 +235,7 @@ const difficulties = [
   { key: "normalRigging", label: "Normal Rigging", value: 0.15 },
   { key: "technicalRigging", label: "Technical Rigging", value: 0.25 },
   { key: "structure", label: "Near Structure/Fence", value: 0.15 },
+  { key: "highRiskStructure", label: "High-Risk Structure/Fence", value: 0.25 },
   { key: "dead", label: "Dead/Brittle", value: 0.15 },
   { key: "drop", label: "Poor Drop Zone", value: 0.15 },
   { key: "access", label: "Bad Access / Long Drag", value: 0.10 },
@@ -350,6 +358,14 @@ function toggleDifficulty(i, key, checked) {
       trees[i].difficulty = trees[i].difficulty.filter(item => item !== "normalRigging");
     }
 
+    if (key === "structure") {
+      trees[i].difficulty = trees[i].difficulty.filter(item => item !== "highRiskStructure");
+    }
+
+    if (key === "highRiskStructure") {
+      trees[i].difficulty = trees[i].difficulty.filter(item => item !== "structure");
+    }
+
     if (!trees[i].difficulty.includes(key)) {
       trees[i].difficulty.push(key);
     }
@@ -420,6 +436,67 @@ function calculate() {
   }
 
   document.getElementById("finalTotal").innerHTML = "$" + Math.round(total);
+}
+
+function printEstimate() {
+  calculate();
+
+  const finalPrice = document.getElementById("finalTotal").innerText;
+
+  let printContent = `
+    <html>
+    <head>
+      <title>Tree Estimate</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 30px; color: #222; }
+        h1 { margin-bottom: 5px; }
+        h2 { margin-top: 25px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .tree { padding: 12px 0; border-bottom: 1px solid #ddd; }
+        .total { font-size: 30px; font-weight: bold; margin-top: 20px; }
+        .note { margin-top: 35px; font-size: 13px; color: #555; }
+      </style>
+    </head>
+    <body>
+      <h1>Tree Removal Estimate</h1>
+      <p><strong>Sticks 'N Stones Tree and Grading</strong></p>
+
+      <h2>Tree Details</h2>
+  `;
+
+  trees.forEach((tree, index) => {
+    const selectedDifficulties = tree.difficulty.map(key => {
+      const found = difficulties.find(d => d.key === key);
+      return found ? `${found.label} (+${Math.round(found.value * 100)}%)` : "";
+    }).filter(Boolean).join("<br>");
+
+    printContent += `
+      <div class="tree">
+        <strong>Tree ${index + 1}</strong><br>
+        Size: ${sizeOptions[tree.size]}<br>
+        Canopy: ${canopyOptions[tree.canopy]}<br>
+        Difficulties:<br>
+        ${selectedDifficulties || "None"}<br>
+        Tree Total: $${Math.round(tree.total)}
+      </div>
+    `;
+  });
+
+  printContent += `
+      <h2>Final Estimate</h2>
+      <div class="total">${finalPrice}</div>
+
+      <p class="note">
+        This estimate is based on visible site conditions and selected scope. Final price may change if job scope, access, hauling, equipment needs, or site conditions change.
+      </p>
+    </body>
+    </html>
+  `;
+
+  const printWindow = window.open("", "_blank");
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 addTree();
