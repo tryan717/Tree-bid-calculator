@@ -120,6 +120,47 @@ button {
   font-size: 13px;
   margin-top: 4px;
 }
+
+#printArea {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #printArea,
+  #printArea * {
+    visibility: visible;
+  }
+
+  #printArea {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 30px;
+    background: white;
+    color: #222;
+  }
+
+  .print-section {
+    margin-top: 22px;
+  }
+
+  .print-tree {
+    border-bottom: 1px solid #ccc;
+    padding: 10px 0;
+  }
+
+  .print-total {
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 20px;
+  }
+}
 </style>
 </head>
 
@@ -212,6 +253,8 @@ button {
 </div>
 
 <button type="button" class="print-btn" onclick="printEstimate()">Print Estimate</button>
+
+<div id="printArea"></div>
 
 <script>
 let trees = [];
@@ -436,30 +479,31 @@ function calculate() {
   }
 
   document.getElementById("finalTotal").innerHTML = "$" + Math.round(total);
+  return total;
 }
 
-function printEstimate() {
-  calculate();
+function money(value) {
+  return "$" + Math.round(Number(value || 0));
+}
 
-  const finalPrice = document.getElementById("finalTotal").innerText;
+function buildPrintEstimate() {
+  const total = calculate();
 
-  let printContent = `
-    <html>
-    <head>
-      <title>Tree Estimate</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 30px; color: #222; }
-        h1 { margin-bottom: 5px; }
-        h2 { margin-top: 25px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-        .tree { padding: 12px 0; border-bottom: 1px solid #ddd; }
-        .total { font-size: 30px; font-weight: bold; margin-top: 20px; }
-        .note { margin-top: 35px; font-size: 13px; color: #555; }
-      </style>
-    </head>
-    <body>
-      <h1>Tree Removal Estimate</h1>
-      <p><strong>Sticks 'N Stones Tree and Grading</strong></p>
+  const climberAdd = document.getElementById("climber").checked ? 600 : 0;
+  const craneAdd = document.getElementById("craneCheck").checked ? Number(document.getElementById("crane").value || 0) : 0;
+  const excavatorAdd = document.getElementById("excavatorCheck").checked ? Number(document.getElementById("excavator").value || 0) : 0;
+  const manualAdd = Number(document.getElementById("manual").value || 0);
 
+  const noHaul = Number(document.getElementById("nohaul").value || 0);
+  const cash = Number(document.getElementById("cash").value || 0);
+  const returning = Number(document.getElementById("returning").value || 0);
+  const multiTreeDiscount = Number(document.getElementById("multiTreeDiscount").value || 0);
+
+  let html = `
+    <h1>Tree Removal Estimate</h1>
+    <p><strong>Sticks 'N Stones Tree and Grading</strong></p>
+
+    <div class="print-section">
       <h2>Tree Details</h2>
   `;
 
@@ -469,34 +513,55 @@ function printEstimate() {
       return found ? `${found.label} (+${Math.round(found.value * 100)}%)` : "";
     }).filter(Boolean).join("<br>");
 
-    printContent += `
-      <div class="tree">
+    html += `
+      <div class="print-tree">
         <strong>Tree ${index + 1}</strong><br>
         Size: ${sizeOptions[tree.size]}<br>
         Canopy: ${canopyOptions[tree.canopy]}<br>
         Difficulties:<br>
         ${selectedDifficulties || "None"}<br>
-        Tree Total: $${Math.round(tree.total)}
+        Raw Tree Price: ${money(tree.raw)}<br>
+        Tree Total: ${money(tree.total)}
       </div>
     `;
   });
 
-  printContent += `
-      <h2>Final Estimate</h2>
-      <div class="total">${finalPrice}</div>
+  html += `
+    </div>
 
-      <p class="note">
-        This estimate is based on visible site conditions and selected scope. Final price may change if job scope, access, hauling, equipment needs, or site conditions change.
-      </p>
-    </body>
-    </html>
+    <div class="print-section">
+      <h2>Fixed Add-Ons</h2>
+      Two Climbers: ${money(climberAdd)}<br>
+      Crane: ${money(craneAdd)}<br>
+      Mini Excavator: ${money(excavatorAdd)}<br>
+      Manual Add-On: ${money(manualAdd)}
+    </div>
+
+    <div class="print-section">
+      <h2>Discounts</h2>
+      No Haul-Off Discount: ${noHaul}%<br>
+      Cash Discount: ${cash}%<br>
+      Multi-Tree Discount: ${multiTreeDiscount}%<br>
+      Returning Customer Discount: ${money(returning)}
+    </div>
+
+    <div class="print-section">
+      <h2>Final Estimate</h2>
+      <div class="print-total">${money(total)}</div>
+    </div>
+
+    <p style="margin-top:35px; font-size:13px; color:#555;">
+      This estimate is based on visible site conditions and selected scope.
+      Final price may change if job scope, access, hauling, equipment needs, or site conditions change.
+    </p>
   `;
 
-  const printWindow = window.open("", "_blank");
-  printWindow.document.write(printContent);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.print();
+  document.getElementById("printArea").innerHTML = html;
+}
+
+function printEstimate() {
+  buildPrintEstimate();
+  window.print();
 }
 
 addTree();
