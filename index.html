@@ -245,6 +245,7 @@ function addTree() {
     total: 0,
     raw: 0
   });
+
   activeTree = trees.length - 1;
   render();
 }
@@ -260,7 +261,10 @@ function render() {
     container.innerHTML += `
       <div class="card tree-summary ${isActive ? "active" : ""}" onclick="setActiveTree(${i})">
         <div class="summary-line">
-          Tree ${i + 1} — ${sizeOptions[tree.size]} / ${canopyOptions[tree.canopy]} — $${Math.round(tree.total)}
+          Tree ${i + 1} — ${sizeOptions[tree.size]} / ${canopyOptions[tree.canopy]} Canopy — $${Math.round(tree.total)}
+        </div>
+        <div class="summary-sub">
+          ${isActive ? "Editing this tree" : "Tap to edit"}
         </div>
       </div>
     `;
@@ -268,30 +272,43 @@ function render() {
     if (isActive) {
       container.innerHTML += `
         <div class="card">
+          <h3>Edit Tree ${i + 1}</h3>
+
           <label>Tree Size</label>
           <select onchange="updateTree(${i}, 'size', this.value)">
-            <option value="450">Small 6–12" - $450</option>
-            <option value="800">Medium 13–22" - $800</option>
-            <option value="1400">Large 23–32" - $1,400</option>
-            <option value="1950" selected>XL 33"+ - $1,950</option>
+            <option value="450" ${tree.size == 450 ? "selected" : ""}>Small - 6–12&quot; DBH - $450</option>
+            <option value="800" ${tree.size == 800 ? "selected" : ""}>Medium - 13–22&quot; DBH - $800</option>
+            <option value="1400" ${tree.size == 1400 ? "selected" : ""}>Large - 23–32&quot; DBH - $1,400</option>
+            <option value="1950" ${tree.size == 1950 ? "selected" : ""}>XL - 33&quot;+ DBH - $1,950</option>
           </select>
 
-          <label>Canopy</label>
+          <label>Canopy Size</label>
           <select onchange="updateTree(${i}, 'canopy', this.value)">
-            <option value="1">Light</option>
-            <option value="1.1">Medium</option>
-            <option value="1.2">Large</option>
-            <option value="1.35">XL</option>
+            <option value="1" ${tree.canopy == 1 ? "selected" : ""}>Light +0%</option>
+            <option value="1.1" ${tree.canopy == 1.1 ? "selected" : ""}>Medium +10%</option>
+            <option value="1.2" ${tree.canopy == 1.2 ? "selected" : ""}>Large +20%</option>
+            <option value="1.35" ${tree.canopy == 1.35 ? "selected" : ""}>XL +35%</option>
           </select>
 
-          <h4>Difficulty</h4>
-          ${difficulties.map(d=>`
-          <label class="checkbox-row">
-            <input type="checkbox" ${tree.difficulty.includes(d.key)?"checked":""}
-            onchange="toggleDifficulty(${i},'${d.key}',this.checked)">
-            <span>${d.label} (+${d.value*100}%)</span>
-          </label>`).join("")}
+          <h4>Difficulty Add-Ons</h4>
+          ${renderDifficultyRows(tree, i)}
 
+          <h4>Price Cap</h4>
+          <label class="checkbox-row">
+            <input type="checkbox" ${tree.cap ? "checked" : ""} onchange="toggleCap(${i}, this.checked)">
+            <span class="checkbox-text">Cap Tree Price</span>
+          </label>
+
+          <label>Cap Amount ($)</label>
+          <input type="number" value="${tree.customCap}" oninput="updateTree(${i}, 'customCap', this.value)">
+
+          <div class="small">
+            Tree Total: $${Math.round(tree.total)}<br>
+            Raw Calculation: $${Math.round(tree.raw)}
+            ${tree.cap && tree.raw > tree.customCap ? "<br>Cap Applied" : ""}
+          </div>
+
+          ${trees.length > 1 ? `<button type="button" class="remove-btn" onclick="removeTree(${i})">Remove Tree</button>` : ""}
         </div>
       `;
     }
@@ -300,40 +317,109 @@ function render() {
   calculate();
 }
 
-function updateTree(i,k,v){ trees[i][k]=Number(v); render(); }
+function renderDifficultyRows(tree, i) {
+  return difficulties.map(diff => `
+    <label class="checkbox-row">
+      <input 
+        type="checkbox" 
+        ${tree.difficulty.includes(diff.key) ? "checked" : ""}
+        onchange="toggleDifficulty(${i}, '${diff.key}', this.checked)"
+      >
+      <span class="checkbox-text">${diff.label} (+${Math.round(diff.value * 100)}%)</span>
+    </label>
+  `).join("");
+}
 
-function toggleDifficulty(i,k,c){
-  if(c) trees[i].difficulty.push(k);
-  else trees[i].difficulty = trees[i].difficulty.filter(x=>x!==k);
+function setActiveTree(i) {
+  activeTree = i;
   render();
 }
 
-function setActiveTree(i){ activeTree=i; render(); }
-
-function calculateTree(t){
-  let base=t.size*t.canopy;
-  let pct=t.difficulty.reduce((a,k)=>a+difficulties.find(d=>d.key===k).value,0);
-  t.total=base*(1+pct);
-  return t.total;
+function updateTree(i, key, value) {
+  trees[i][key] = Number(value);
+  render();
 }
 
-function calculate(){
-  let total = trees.reduce((sum,t)=>sum+calculateTree(t),0);
+function toggleDifficulty(i, key, checked) {
+  if (checked) {
+    if (key === "normalRigging") {
+      trees[i].difficulty = trees[i].difficulty.filter(item => item !== "technicalRigging");
+    }
 
-  if(climber.checked) total+=600;
-  if(craneCheck.checked) total+=+crane.value;
-  if(excavatorCheck.checked) total+=+excavator.value;
+    if (key === "technicalRigging") {
+      trees[i].difficulty = trees[i].difficulty.filter(item => item !== "normalRigging");
+    }
 
-  total+=+manual.value;
+    if (!trees[i].difficulty.includes(key)) {
+      trees[i].difficulty.push(key);
+    }
+  } else {
+    trees[i].difficulty = trees[i].difficulty.filter(item => item !== key);
+  }
 
-  total*=1-nohaul.value/100;
-  total*=1-cash.value/100;
-  total*=1-multiTreeDiscount.value/100;
-  total-=+returning.value;
+  render();
+}
 
-  if(minimumCheck.checked && total<minimumPrice.value) total=minimumPrice.value;
+function toggleCap(i, checked) {
+  trees[i].cap = checked;
+  render();
+}
 
-  finalTotal.innerHTML="$"+Math.round(total);
+function removeTree(i) {
+  trees.splice(i, 1);
+  if (activeTree >= trees.length) activeTree = trees.length - 1;
+  if (activeTree < 0) activeTree = 0;
+  render();
+}
+
+function calculateTree(tree) {
+  const base = tree.size * tree.canopy;
+
+  const difficultyPercent = tree.difficulty.reduce((sum, key) => {
+    const found = difficulties.find(d => d.key === key);
+    return sum + (found ? found.value : 0);
+  }, 0);
+
+  const raw = base * (1 + difficultyPercent);
+  const finalTree = tree.cap ? Math.min(raw, tree.customCap) : raw;
+
+  tree.raw = raw;
+  tree.total = finalTree;
+
+  return finalTree;
+}
+
+function calculate() {
+  let total = 0;
+
+  trees.forEach(tree => {
+    total += calculateTree(tree);
+  });
+
+  if (document.getElementById("climber").checked) total += 600;
+  if (document.getElementById("craneCheck").checked) total += Number(document.getElementById("crane").value || 0);
+  if (document.getElementById("excavatorCheck").checked) total += Number(document.getElementById("excavator").value || 0);
+
+  total += Number(document.getElementById("manual").value || 0);
+
+  const noHaul = Number(document.getElementById("nohaul").value || 0);
+  const cash = Number(document.getElementById("cash").value || 0);
+  const returning = Number(document.getElementById("returning").value || 0);
+  const multiTreeDiscount = Number(document.getElementById("multiTreeDiscount").value || 0);
+
+  total *= (1 - noHaul / 100);
+  total *= (1 - cash / 100);
+  total *= (1 - multiTreeDiscount / 100);
+  total -= returning;
+
+  if (total < 0) total = 0;
+
+  if (document.getElementById("minimumCheck").checked) {
+    const minimumPrice = Number(document.getElementById("minimumPrice").value || 0);
+    if (total < minimumPrice) total = minimumPrice;
+  }
+
+  document.getElementById("finalTotal").innerHTML = "$" + Math.round(total);
 }
 
 addTree();
